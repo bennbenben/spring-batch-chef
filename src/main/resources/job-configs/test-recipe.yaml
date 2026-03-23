@@ -1,0 +1,8 @@
+job-name: TestTaskletJob
+steps:
+  - step-name: CreateAndInsert
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      jdbc: execute
+      sql: "CREATE TABLE IF NOT EXISTS chef_test(val VARCHAR(255)); INSERT INTO chef_test VALUES ('DELICIOUS');"

@@ -1,0 +1,6 @@
+{
+  "jobName": "BakersLedgerDailyJob",
+  "jobParameters": {
+    "fileNameList": "ledger_entries.csv|ledger_entries_2.csv"
+  }
+}

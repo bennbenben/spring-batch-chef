@@ -1,0 +1,6 @@
+{
+  "jobName": "ExportLedgerJob",
+  "jobParameters": {
+    "reportDate": "2026_03_10"
+  }
+}

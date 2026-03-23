@@ -1,0 +1,61 @@
+job-name: BakersLedgerDailyJob
+steps:
+  - step-name: PrepTables
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      jdbc: execute
+      sql: "DROP TABLE IF EXISTS BATCH_STAGING; CREATE TABLE BATCH_STAGING (id INT, item_name VARCHAR(255));"
+
+  - step-name: ProcessDailyLedger
+    model: chunk
+    chunk:
+      chunk-size: 50
+      skip-limit: 5
+      strategy: partition # or multi-thread or partition
+      max-threads: 5 # for multi-thread 
+      skippable-exceptions: # if 
+        - org.springframework.batch.infrastructure.item.file.FlatFileParseException
+        - org.springframework.dao.DataIntegrityViolationException
+      fatal-exceptions:
+        - org.springframework.jdbc.CannotGetJdbcConnectionException # if the database connection drops, crash the job INSTANTLY
+    reader:
+      type: FILE
+      delimited-file-reader:
+        delimiter: "~|~"
+        base-path: "${basePath}"
+        file-name-list: "${fileNameList}"
+        file-fields:
+          - name: entryId
+          - name: description
+    processor:
+      transforms:
+        - type: direct-map
+          reader-field: entryId
+          writer-field: id
+          default-value: 0
+        - type: custom
+          reader-field: description
+          writer-field: item_name
+          default-value: "UNKNOWN ITEM"
+    writer:
+      type: DB
+      db-writer:
+        connection-name: primary
+        sql: "INSERT INTO BATCH_STAGING (id, item_name) VALUES (:id, :item_name)"
+
+  - step-name: MoveToFinalLedger
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      jdbc: execute
+      sql: "CREATE TABLE IF NOT EXISTS FINAL_LEDGER (id INT, item_name VARCHAR(255))"
+      
+  - step-name: AddMoreToLedger
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      strategy: partition
+      max-threads: 1
+      jdbc: execute
+      sql: "LOAD DATA LOCAL INFILE '${basePath}${fileName}' INTO TABLE FINAL_LEDGER FIELDS TERMINATED BY '~|~';"

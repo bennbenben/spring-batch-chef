@@ -1,0 +1,32 @@
+job-name: ArchiveLedgerJob
+steps:
+  - step-name: PrepArchiveTable
+    model: tasklet
+    tasklet:
+      connection-name: archiveDb
+      jdbc: execute
+      sql: "CREATE TABLE IF NOT EXISTS ARCHIVE_LEDGER (archive_id INT, item_name VARCHAR(255), archived_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+
+  - step-name: TransferToArchive
+    model: chunk
+    chunk:
+      chunk-size: 100
+      skip-limit: 10
+    reader:
+      type: DB
+      db-reader:
+        connection-name: primary
+        sql: "SELECT id, item_name FROM FINAL_LEDGER"
+    processor:
+      transforms:
+        - type: direct-map
+          reader-field: id
+          writer-field: archive_id
+        - type: direct-map
+          reader-field: item_name
+          writer-field: item_name
+    writer:
+      type: DB
+      db-writer:
+        connection-name: archiveDb
+        sql: "INSERT INTO ARCHIVE_LEDGER (archive_id, item_name) VALUES (:archive_id, :item_name)"

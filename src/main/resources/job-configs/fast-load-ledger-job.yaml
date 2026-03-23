@@ -1,0 +1,19 @@
+job-name: FastLoadLedgerJob
+steps:
+  # Step 1: Ensure the table exists before we try to insert data into it
+  - step-name: PrepFinalTable
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      jdbc: execute
+      strategy: partition
+      max-threads: 1
+      sql: >
+        LOAD DATA LOCAL INFILE '/Data/${fileName}' 
+        INTO TABLE batch_input
+        FIELDS TERMINATED BY '~|~'
+        LINES TERMINATED BY '\n'
+        (@id,@description)
+        SET
+        id=COALESCE(TRIM(@id),''),
+        description=COALESCE(TRIM(@description),'')

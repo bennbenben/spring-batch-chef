@@ -1,0 +1,80 @@
+job-name: HybridLedgerJob
+steps:
+  # ---------------------------------------------------------
+  # PREP: Clean the staging table
+  # ---------------------------------------------------------
+  - step-name: PrepStagingTable
+    model: tasklet
+    tasklet:
+      connection-name: primary
+      jdbc: execute
+      sql: >
+        DROP TABLE IF EXISTS BATCH_STAGING; 
+        CREATE TABLE BATCH_STAGING (id INT, item_name VARCHAR(255), tax_rate DECIMAL(5,2), category VARCHAR(50));
+
+  # ---------------------------------------------------------
+  # CHUNK A: The "Pure YAML" Way (Simple Direct Mapping)
+  # ---------------------------------------------------------
+  - step-name: ProcessStandardFiles
+    model: chunk
+    chunk:
+      chunk-size: 100
+      skip-limit: 10
+      skippable-exceptions:
+        - org.springframework.batch.infrastructure.item.file.FlatFileParseException
+    reader:
+      type: FILE
+      delimited-file-reader:
+        delimiter: ","
+        base-path: "/Data/standard/"
+        file-name-list: "standard_entries.csv"
+        file-fields:
+          - name: entryId
+          - name: description
+    processor:
+      # We use standard YAML transforms here because the logic is simple!
+      transforms:
+        - type: direct-map
+          reader-field: entryId
+          writer-field: id
+          default-value: 0
+        - type: direct-map
+          reader-field: description
+          writer-field: item_name
+          default-value: "STANDARD ITEM"
+    writer:
+      type: DB
+      db-writer:
+        connection-name: primary
+        # We hardcode the tax_rate and category for standard items
+        sql: "INSERT INTO BATCH_STAGING (id, item_name, tax_rate, category) VALUES (:id, :item_name, 0.00, 'STANDARD')"
+
+  # ---------------------------------------------------------
+  # CHUNK B: The "Custom Bean" Way (Complex Java Logic)
+  # ---------------------------------------------------------
+  - step-name: ProcessComplexTaxFiles
+    model: chunk
+    chunk:
+      chunk-size: 100
+      skip-limit: 10
+      skippable-exceptions:
+        - org.springframework.batch.infrastructure.item.file.FlatFileParseException
+    reader:
+      type: FILE
+      delimited-file-reader:
+        delimiter: "~|~"
+        base-path: "/Data/complex/"
+        file-name-list: "complex_tax_entries.dat"
+        file-fields:
+          - name: entryId
+          - name: description
+    processor:
+      # Instead of 'transforms', we tell the engine to fetch the Spring Bean!
+      type: custom-bean
+      bean-name: "complexLedgerTaxProcessor"
+    writer:
+      type: DB
+      db-writer:
+        connection-name: primary
+        # Here we use the dynamically calculated :tax_rate and :category from your Java code!
+        sql: "INSERT INTO BATCH_STAGING (id, item_name, tax_rate, category) VALUES (:id, :item_name, :tax_rate, :category)"

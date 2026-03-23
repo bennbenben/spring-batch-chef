@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: demo
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+
+  batch:
+    job:
+      enabled: false # Keep this false so Spring doesn't auto-run everything
+
+app:
+  datasource:
+    # 1. This creates a bean named "primary" (Spring Batch will use this one)
+    primary:
+      url: jdbc:mariadb://localhost:3306/hello_world?allowLocalInfile=true&allowMultiQueries=true
+      driver-class-name: org.mariadb.jdbc.Driver
+      username: root
+      password: rB#7e99e%
+      
+    # 2. This creates a bean named "ledgerDb"
+    ledgerDb:
+      url: jdbc:h2:mem:ledgerdb;DB_CLOSE_DELAY=-1
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: 
+      
+    # 3. This creates a bean named "archiveDb"
+    archiveDb:
+      url: jdbc:h2:mem:archivedb;DB_CLOSE_DELAY=-1
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: 
+
+  batch-error-logger: 
+    enabled: true
+ 
+spring-batch-chef:
+  recipe-paths: 
+    - "classpath:job-configs/*.yaml"
+    - "classpath:job-configs/*.yml"
+  default-chunk-size: 1
+  concurrency:
+    core-pool-size: 5 
+    max-pool-size: 10
+    queue-capacity: 20
+    queue-behaviour: "CALLER_RUNS"
+  table-prefix: BATCH_

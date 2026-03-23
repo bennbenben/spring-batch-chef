@@ -1,0 +1,33 @@
+job-name: ExportLedgerJob
+steps:
+  - step-name: ExportToCsv
+    model: chunk
+    chunk:
+      chunk-size: 50
+      skip-limit: 5
+      
+    reader:
+      type: DB
+      db-reader:
+        connection-name: archiveDb
+        sql: "SELECT archive_id, item_name FROM ARCHIVE_LEDGER"
+            
+    processor:
+      transforms:
+        - type: direct-map
+          reader-field: archive_id
+          writer-field: output_id
+        - type: direct-map
+          reader-field: item_name
+          writer-field: output_name
+          
+    writer:
+      type: FILE
+      delimited-file-writer:
+        delimiter: ","
+        base-path: "/Data/"
+        # The prefix and extension are hardcoded, the date is dynamic!
+        file-name: "bakers_ledger_export_${reportDate}.csv"
+        file-fields:
+          - name: output_id
+          - name: output_name
