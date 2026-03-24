@@ -2,6 +2,7 @@ package com.demo.demo.config;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +47,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.jdbc.core.ColumnMapRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.PropertyPlaceholderHelper;
@@ -246,7 +248,8 @@ public class DynamicStepFactoryBean implements FactoryBean<Step> {
     // 1. initialize the base Step builder
     var faultTolerantBuilder = new StepBuilder(name, jobRepository)
         .<Map<String, Object>, Map<String, Object>>chunk(chunkConfig.getChunkSize(), transactionManager)
-        .reader(threadSafeReader).processor(buildProcessor()).writer(writer).faultTolerant()
+        .reader(threadSafeReader).processor(buildProcessor()).writer(writer)
+        .faultTolerant()
         .skipLimit(chunkConfig.getSkipLimit()).listener(buildSkipListener());
 
     // 2. Dynamically add Skippable Exceptions from YAML
@@ -259,9 +262,6 @@ public class DynamicStepFactoryBean implements FactoryBean<Step> {
           log.error("CHEF LOG: Invalid skippable exception class in YAML: {}", className);
         }
       }
-    } else {
-      // Fallback: If no list is provided, default to skipping all general Exceptions
-      faultTolerantBuilder.skip(Exception.class);
     }
 
     // 3. Dynamically add Fatal Exceptions (No-Skip) from YAML
@@ -345,17 +345,20 @@ public class DynamicStepFactoryBean implements FactoryBean<Step> {
     return new SkipListener<Map<String, Object>, Map<String, Object>>() {
       @Override
       public void onSkipInRead(Throwable t) {
-        logBatchError(null, "READER_ERROR", t.getMessage());
+        log.error("Error found onSkipInRead:{}", t);
+//        logBatchError(null, "READER_ERROR", t.getMessage());
       }
 
       @Override
       public void onSkipInProcess(Map<String, Object> item, Throwable t) {
-        logBatchError(item, "PROCESSOR_ERROR", t.getMessage());
+        log.error("Error found onSkipInProcess:{}", t);
+//        logBatchError(item, "PROCESSOR_ERROR", t.getMessage());
       }
 
       @Override
       public void onSkipInWrite(Map<String, Object> item, Throwable t) {
-        logBatchError(item, "WRITER_ERROR", t.getMessage());
+        log.error("Error found onSkipInWrite:{}", t);
+        // logBatchError(item, "WRITER_ERROR", t.getMessage());
       }
 
       private void logBatchError(Map<String, Object> item, String status, String errorMsg) {
@@ -553,12 +556,12 @@ public class DynamicStepFactoryBean implements FactoryBean<Step> {
       for (TransformConfig transform : processorConfig.getTransforms()) {
         if ("direct-map".equalsIgnoreCase(transform.getType()) || "custom".equalsIgnoreCase(transform.getType())) {
           Object value = item.get(transform.getReaderField());
-          boolean isNullOrEmpty = (value == null) || (value instanceof String && ((String) value).trim().isEmpty());
+          boolean isNullOrEmpty = (value == null) || (value instanceof String && ((String) value).isEmpty());
           // only trigger replacement if yaml contains a default-value property
           if (isNullOrEmpty && transform.getDefaultValue() != null) {
             // check for reserved keyword: {NULL}
             if ("{NULL}".equals(transform.getDefaultValue())) {
-              value = null;
+              value = new SqlParameterValue(Types.VARCHAR, null);
             } else {
               value = transform.getDefaultValue();
             }
