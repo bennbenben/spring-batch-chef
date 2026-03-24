@@ -262,9 +262,6 @@ public class DynamicStepFactoryBean implements FactoryBean<Step> {
           log.error("CHEF LOG: Invalid skippable exception class in YAML: {}", className);
         }
       }
-    } else {
-      // Fallback: If no list is provided, default to skipping all general Exceptions
-      faultTolerantBuilder.skip(Exception.class);
     }
 
     // 3. Dynamically add Fatal Exceptions (No-Skip) from YAML
